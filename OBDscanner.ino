@@ -5,6 +5,7 @@
  * Red=+5V, Black=GND, White=RX, Green=TX
  * Baudrate is 115200
  * 
+ * 
  * Circuit:
  * Arduino Mega uses Serial 1: Green->19 White->18
  * 
@@ -105,40 +106,6 @@ void testOut()
     u8x8.clearLine(2);
 }
 
-void readPIDSingle()
-{
-  int value;
-#ifdef DEBUG
-  if (obd.readPID(PID_RPM, value)) {
-    debug(L_INFO, "[%lu] RPM=%d", millis(), value );
-  }
-  debug(L_INFO,"\n");
-#endif
-}
-
-void readPIDMultiple()
-{
-    static const byte pids[] = {PID_SPEED, PID_ENGINE_LOAD, PID_THROTTLE, PID_COOLANT_TEMP};
-    int values[sizeof(pids)];
-    if (obd.readPID(pids, sizeof(pids), values) == sizeof(pids)) {
-#ifdef DEBUG
-      debug(L_INFO, "[%lu]", millis());
-
-      for (byte i = 0; i < sizeof(pids) ; i++) {
-        debug(L_INFO, " %x=%d", (int)pids[i] | 0x100, values[i]);
-       }
-       debug(L_INFO,"\n");
-#endif
-    }
-}
-
-void readBatteryVoltage()
-{
-#ifdef DEBUG
-  debug(L_INFO, "[%lu] Battery:%fV\n", millis(), obd.getVoltage() );
-#endif
-}
-
 void readMEMS()
 {
   int acc[3];
@@ -212,17 +179,29 @@ void setDisplay() {
       u8x8.draw2x2String(0,2,"LD :   %");
       u8x8.draw2x2String(0,4,"RPM:");
       u8x8.draw2x2String(0,6,"TMP:   C");
+      break;
   }
 }
 
 void updateDisplay () {
   char strbuf[10];
-
+  byte pids_read;
+  unsigned long timing;
+  
+#ifdef DEBUG  
   debug(L_INFO, "update page %d\n", selectedPage);
-  if (obd.readPID(pids, sizeof(pids), pid_values) == sizeof(pids)) {
-    for (byte i = 0; i < sizeof(pids) ; i++) {
+  timing = millis();
+#endif
+  pids_read = obd.readPID(pids, NO_OF_PIDS, pid_values);
+  
+#ifdef DEBUG  
+  debug(L_INFO, "pid read time: %ulmiilis\n", millis() - timing );
+#endif
+
+  if (pids_read == NO_OF_PIDS) {
+    for (byte i = 0; i < NO_OF_PIDS ; i++) {
 #ifdef DEBUG      
-      //debug(L_INFO, " %x=%d", (int)pids[i] | 0x100, pid_values[i]);
+      debug(L_INFO, " %x=%d", (int)pids[i] | 0x100, pid_values[i]);
 #endif
       switch(pid_display[i]) {
         case 0:
@@ -238,6 +217,8 @@ void updateDisplay () {
       if (pid_display[i] != 0)
         u8x8.draw2x2String(8,i*2,strbuf);
     }
+  } else {
+    debug(L_ERROR, "readPID() error: expected %d PIDs but got %d PIDs\n", NO_OF_PIDS, pids_read);
   }
 }
 
